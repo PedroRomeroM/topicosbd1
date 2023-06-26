@@ -1,15 +1,13 @@
-import nltk
-import unicodedata
 from nltk import FreqDist
 import numpy as np
 from sklearn import svm
 
-# Função para remover acentos
-def remover_acentos(frase):
-    frase_sem_acentos = ''.join(
-        (c for c in unicodedata.normalize('NFD', frase) if unicodedata.category(c) != 'Mn')
-    )
-    return frase_sem_acentos
+# Função para calcular o tamanho médio das palavras
+def calcular_tamanho_medio_palavras(frase):
+    palavras = frase.split()
+    tamanho_palavras = [len(palavra) for palavra in palavras]
+    tamanho_medio = np.mean(tamanho_palavras)
+    return tamanho_medio
 
 # Função para calcular a frequência das letras
 def calcular_frequencia_letras(frase):
@@ -18,33 +16,31 @@ def calcular_frequencia_letras(frase):
 
 # Função para extrair as características de uma frase
 def extrair_caracteristicas(frase):
-    frase_sem_acentos = remover_acentos(frase.lower())
-    frequencias = calcular_frequencia_letras(frase_sem_acentos)
-    tamanho_medio_palavras = calcular_tamanho_medio_palavras(frase_sem_acentos)
-    # Adicione outras características aqui, se necessário
-    return [frequencias, tamanho_medio_palavras]
+    frequencias = calcular_frequencia_letras(frase)
+    tamanho_medio_palavras = calcular_tamanho_medio_palavras(frase)
+
+    caracteres_arabicos = [chr(i) for i in range(97, 123)]  # Letras minúsculas de 'a' a 'z'
+    vetor_caracteristicas = []
+    
+    for caract in caracteres_arabicos:
+        if caract in frequencias:
+            vetor_caracteristicas.append(frequencias[caract])
+        else:
+            vetor_caracteristicas.append(0)
+    
+    vetor_caracteristicas.append(tamanho_medio_palavras)
+    
+    return vetor_caracteristicas
 
 # Função auxiliar para criar vetor de características
-def criar_vetor_caracteristicas(dados, max_num_caracteristicas):
+def criar_vetor_caracteristicas(dados):
+    max_num_caracteristicas = 26 + 1  # 26 letras do alfabeto + 1 para o tamanho médio das palavras
     matriz_caracteristicas = np.zeros((len(dados), max_num_caracteristicas))
+    
     for i, dado in enumerate(dados):
-        vetor = []
-        for caract in dado:
-            if isinstance(caract, dict):
-                for _, freq in sorted(caract.items()):
-                    vetor.append(freq)
-            else:
-                vetor.append(caract)
-        matriz_caracteristicas[i, :len(vetor)] = vetor[:max_num_caracteristicas]
-
+        matriz_caracteristicas[i, :] = dado
+    
     return matriz_caracteristicas
-
-# Função para calcular o tamanho médio das palavras
-def calcular_tamanho_medio_palavras(frase):
-    palavras = frase.split()
-    tamanho_palavras = [len(palavra) for palavra in palavras]
-    tamanho_medio = np.mean(tamanho_palavras)
-    return tamanho_medio
 
 # Ler os arquivos de texto e criar dicionários de frases para cada idioma
 dados_treinamento = {
@@ -80,9 +76,7 @@ for classe, frases in dados_treinamento.items():
         treinamento_dados.append(extrair_caracteristicas(frase))
         treinamento_classes.append(classe)
 
-max_num_caracteristicas = max(len(caract) if isinstance(caract, dict) else 1 for dado in treinamento_dados for caract in dado)
-
-matriz_caracteristicas = criar_vetor_caracteristicas(treinamento_dados, max_num_caracteristicas)
+matriz_caracteristicas = criar_vetor_caracteristicas(treinamento_dados)
 
 # Treinar o modelo SVM
 modelo = svm.SVC()
@@ -100,7 +94,7 @@ with open('teste.txt', 'r') as arquivo_teste:
 # Classificar as frases de teste
 for dado in dados_teste:
     caracteristicas = extrair_caracteristicas(dado)
-    vetor_caracteristicas_teste = criar_vetor_caracteristicas([caracteristicas], max_num_caracteristicas)
+    vetor_caracteristicas_teste = criar_vetor_caracteristicas([caracteristicas])
     resultado = modelo.predict(vetor_caracteristicas_teste)
 
     print("Texto:", dado)
@@ -113,11 +107,10 @@ texto_desconhecido = input("Digite um novo texto: ")
 
 # Extrair as características do texto desconhecido
 caracteristicas_texto_desconhecido = extrair_caracteristicas(texto_desconhecido)
-vetor_caracteristicas_desconhecido = criar_vetor_caracteristicas([caracteristicas_texto_desconhecido], max_num_caracteristicas)
+vetor_caracteristicas_desconhecido = criar_vetor_caracteristicas([caracteristicas_texto_desconhecido])
 
 # Classificar o texto desconhecido
 resultado_desconhecido = modelo.predict(vetor_caracteristicas_desconhecido)
 
 # Apresentar a língua indicada pelo modelo
-print("Língua indicada pelo modelo: ", resultado_desconhecido[0])
-
+print("Língua indicada pelo modelo:", resultado_desconhecido[0])
